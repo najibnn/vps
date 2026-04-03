@@ -1,4 +1,4 @@
-name: Ubuntu VNC with noVNC and ngrok v3
+name: Ubuntu VNC with noVNC and ngrok v3 (Improved)
 
 on: [workflow_dispatch]
 
@@ -11,7 +11,7 @@ jobs:
           sudo apt update
           sudo apt install xfce4 xfce4-goodies tightvncserver git wget tar jq -y
 
-          # إعداد كلمة مرور VNC تلقائيًا (6 أحرف على الأقل)
+          # إعداد كلمة مرور VNC تلقائيًا (6 أحرف أو أكثر)
           mkdir -p ~/.vnc
           echo "123456" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
@@ -30,6 +30,17 @@ jobs:
           git clone https://github.com/novnc/noVNC.git ~/noVNC
           nohup ~/noVNC/utils/launch.sh --vnc localhost:5901 --listen 6080 &
 
+      - name: Wait for noVNC to be ready
+        run: |
+          echo "Waiting for noVNC to start..."
+          for i in {1..10}; do
+            if nc -z localhost 6080; then
+              echo "noVNC is up!"
+              break
+            fi
+            sleep 2
+          done
+
       - name: Install latest ngrok v3
         run: |
           wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
@@ -42,10 +53,15 @@ jobs:
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH }}
           nohup ngrok http 6080 --log=stdout --log-format=json > ngrok.log &
 
-      - name: Wait for ngrok and show public URL
+      - name: Wait for ngrok URL and display
         run: |
-          echo "Waiting for ngrok to start..."
-          sleep 10
-          # استخراج الرابط العام من ملف log
-          PUBLIC_URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^https"))' ngrok.log | head -n1)
-          echo "Your noVNC URL: $PUBLIC_URL"
+          echo "Waiting for ngrok public URL..."
+          for i in {1..15}; do
+            URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^https"))' ngrok.log | head -n1)
+            if [ ! -z "$URL" ]; then
+              echo "Your noVNC URL: $URL"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Failed to get ngrok URL, check logs."
