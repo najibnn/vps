@@ -1,45 +1,27 @@
-name: Ubuntu VNC with noVNC and ngrok v3 (Improved)
+name: SSH via ngrok (Stable)
 
 on: [workflow_dispatch]
 
 jobs:
-  build:
+  ssh:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Desktop Environment & VNC
+      - name: Install SSH server
         run: |
           sudo apt update
-          sudo apt install xfce4 xfce4-goodies tightvncserver git wget tar jq -y
+          sudo apt install openssh-server wget tar jq -y
+          sudo mkdir -p /var/run/sshd
 
-          # إعداد كلمة مرور VNC تلقائيًا (6 أحرف أو أكثر)
-          mkdir -p ~/.vnc
-          echo "123456" | vncpasswd -f > ~/.vnc/passwd
-          chmod 600 ~/.vnc/passwd
+          # ضبط كلمة مرور مؤقتة
+          echo "ubuntu:123456" | sudo chpasswd
 
-          # إعداد xstartup لتشغيل XFCE
-          echo "#!/bin/bash
-          xrdb $HOME/.Xresources
-          startxfce4 &" > ~/.vnc/xstartup
-          chmod +x ~/.vnc/xstartup
+          # السماح بالاتصال بكلمة مرور
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-          # تشغيل VNC
-          vncserver :1 -geometry 1280x720 -depth 24
-
-      - name: Setup noVNC
-        run: |
-          git clone https://github.com/novnc/noVNC.git ~/noVNC
-          nohup ~/noVNC/utils/launch.sh --vnc localhost:5901 --listen 6080 &
-
-      - name: Wait for noVNC to be ready
-        run: |
-          echo "Waiting for noVNC to start..."
-          for i in {1..10}; do
-            if nc -z localhost 6080; then
-              echo "noVNC is up!"
-              break
-            fi
-            sleep 2
-          done
+          # تشغيل SSH
+          sudo systemctl enable ssh
+          sudo systemctl restart ssh
 
       - name: Install latest ngrok v3
         run: |
@@ -48,20 +30,25 @@ jobs:
           sudo mv ngrok /usr/local/bin/ngrok
           ngrok version
 
-      - name: Configure ngrok auth token and open tunnel
+      - name: Configure ngrok and start TCP tunnel
         run: |
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH }}
-          nohup ngrok http 6080 --log=stdout --log-format=json > ngrok.log &
+          nohup ngrok tcp 22 --log=stdout --log-format=json > ngrok_ssh.log &
 
-      - name: Wait for ngrok URL and display
+      - name: Wait for ngrok TCP URL and display
         run: |
-          echo "Waiting for ngrok public URL..."
-          for i in {1..15}; do
-            URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^https"))' ngrok.log | head -n1)
+          echo "Waiting for ngrok SSH URL..."
+          for i in {1..30}; do
+            URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^tcp://"))' ngrok_ssh.log | head -n1)
             if [ ! -z "$URL" ]; then
-              echo "Your noVNC URL: $URL"
+              HOST=$(echo $URL | cut -d/ -f3 | cut -d: -f1)
+              PORT=$(echo $URL | cut -d: -f3)
+              echo "SSH is ready!"
+              echo "Connect using this command:"
+              echo "ssh ubuntu@$HOST -p $PORT"
+              echo "Password: 123456"
               exit 0
             fi
             sleep 2
           done
-          echo "Failed to get ngrok URL, check logs."
+          echo "Failed to get ngrok SSH URL. Check ngrok logs."
