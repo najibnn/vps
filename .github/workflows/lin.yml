@@ -1,4 +1,4 @@
-name: Ubuntu VNC
+name: Ubuntu VNC with noVNC
 
 on: [workflow_dispatch]
 
@@ -11,7 +11,7 @@ jobs:
           sudo apt update
           sudo apt install xfce4 xfce4-goodies tightvncserver git wget unzip -y
 
-          # إعداد كلمة المرور تلقائيًا (6 أحرف أو أكثر)
+          # إعداد كلمة مرور VNC تلقائيًا (6 أحرف على الأقل)
           mkdir -p ~/.vnc
           echo "123456" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
@@ -25,18 +25,20 @@ jobs:
           # تشغيل VNC
           vncserver :1 -geometry 1280x720 -depth 24
 
-      - name: Setup noVNC Server
+      - name: Setup noVNC and ngrok
         run: |
           # تحميل noVNC
           git clone https://github.com/novnc/noVNC.git ~/noVNC
-          
+
           # تشغيل noVNC على المنفذ 6080
           nohup ~/noVNC/utils/launch.sh --vnc localhost:5901 --listen 6080 &
 
-          # تثبيت ngrok لعمل Tunnel بدل Serveo
+          # تحميل ngrok
           wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
           unzip ngrok-stable-linux-amd64.zip
-          
-          # مثال على إنشاء tunnel (استبدل <YOUR_NGROK_AUTH> بالمفتاح الخاص بك)
-          ./ngrok authtoken <YOUR_NGROK_AUTH>
+
+          # إعداد ngrok باستخدام Secret
+          ./ngrok authtoken ${{ secrets.NGROK_AUTH }}
+
+          # فتح tunnel على المنفذ 6080
           nohup ./ngrok http 6080 &
