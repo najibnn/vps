@@ -1,4 +1,4 @@
-name: Ubuntu VNC with noVNC
+name: Ubuntu VNC with noVNC and ngrok v3
 
 on: [workflow_dispatch]
 
@@ -9,7 +9,7 @@ jobs:
       - name: Install Desktop Environment & VNC
         run: |
           sudo apt update
-          sudo apt install xfce4 xfce4-goodies tightvncserver git wget unzip -y
+          sudo apt install xfce4 xfce4-goodies tightvncserver git wget tar jq -y
 
           # إعداد كلمة مرور VNC تلقائيًا (6 أحرف على الأقل)
           mkdir -p ~/.vnc
@@ -25,20 +25,27 @@ jobs:
           # تشغيل VNC
           vncserver :1 -geometry 1280x720 -depth 24
 
-      - name: Setup noVNC and ngrok
+      - name: Setup noVNC
         run: |
-          # تحميل noVNC
           git clone https://github.com/novnc/noVNC.git ~/noVNC
-
-          # تشغيل noVNC على المنفذ 6080
           nohup ~/noVNC/utils/launch.sh --vnc localhost:5901 --listen 6080 &
 
-          # تحميل ngrok
-          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
-          unzip ngrok-stable-linux-amd64.zip
+      - name: Install latest ngrok v3
+        run: |
+          wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar -xvzf ngrok-v3-stable-linux-amd64.tgz
+          sudo mv ngrok /usr/local/bin/ngrok
+          ngrok version
 
-          # إعداد ngrok باستخدام Secret
-          ./ngrok authtoken ${{ secrets.NGROK_AUTH }}
+      - name: Configure ngrok auth token and open tunnel
+        run: |
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH }}
+          nohup ngrok http 6080 --log=stdout --log-format=json > ngrok.log &
 
-          # فتح tunnel على المنفذ 6080
-          nohup ./ngrok http 6080 &
+      - name: Wait for ngrok and show public URL
+        run: |
+          echo "Waiting for ngrok to start..."
+          sleep 10
+          # استخراج الرابط العام من ملف log
+          PUBLIC_URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^https"))' ngrok.log | head -n1)
+          echo "Your noVNC URL: $PUBLIC_URL"
