@@ -1,21 +1,42 @@
-name: RDP
+name: Ubuntu VNC
 
 on: [workflow_dispatch]
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Download ngrok
+      - name: Install Desktop Environment & VNC
         run: |
-          Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
-          Expand-Archive ngrok.zip
-          ./ngrok.exe authtoken YOUR_AUTH_TOKEN
+          sudo apt update
+          sudo apt install xfce4 xfce4-goodies tightvncserver git wget unzip -y
 
-      - name: Enable RDP
+          # إعداد كلمة المرور تلقائيًا (6 أحرف أو أكثر)
+          mkdir -p ~/.vnc
+          echo "123456" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+
+          # إعداد xstartup لتشغيل XFCE
+          echo "#!/bin/bash
+          xrdb $HOME/.Xresources
+          startxfce4 &" > ~/.vnc/xstartup
+          chmod +x ~/.vnc/xstartup
+
+          # تشغيل VNC
+          vncserver :1 -geometry 1280x720 -depth 24
+
+      - name: Setup noVNC Server
         run: |
-          net user kamel123 MyStrong123 /add
-          net localgroup administrators kamel123 /add
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          ./ngrok.exe tcp 3389
+          # تحميل noVNC
+          git clone https://github.com/novnc/noVNC.git ~/noVNC
+          
+          # تشغيل noVNC على المنفذ 6080
+          nohup ~/noVNC/utils/launch.sh --vnc localhost:5901 --listen 6080 &
+
+          # تثبيت ngrok لعمل Tunnel بدل Serveo
+          wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip
+          unzip ngrok-stable-linux-amd64.zip
+          
+          # مثال على إنشاء tunnel (استبدل <YOUR_NGROK_AUTH> بالمفتاح الخاص بك)
+          ./ngrok authtoken <YOUR_NGROK_AUTH>
+          nohup ./ngrok http 6080 &
