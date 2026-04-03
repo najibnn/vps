@@ -1,4 +1,4 @@
-name: SSH via ngrok (Stable)
+name: SSH via ngrok (Fixed User)
 
 on: [workflow_dispatch]
 
@@ -12,8 +12,10 @@ jobs:
           sudo apt install openssh-server wget tar jq -y
           sudo mkdir -p /var/run/sshd
 
-          # ضبط كلمة مرور مؤقتة
-          echo "ubuntu:123456" | sudo chpasswd
+          # إنشاء مستخدم جديد بصلاحيات sudo
+          sudo useradd -m sshuser
+          echo "sshuser:123456" | sudo chpasswd
+          sudo usermod -aG sudo sshuser
 
           # السماح بالاتصال بكلمة مرور
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -45,7 +47,7 @@ jobs:
               PORT=$(echo $URL | cut -d: -f3)
               echo "SSH is ready!"
               echo "Connect using this command:"
-              echo "ssh ubuntu@$HOST -p $PORT"
+              echo "ssh sshuser@$HOST -p $PORT"
               echo "Password: 123456"
               exit 0
             fi
