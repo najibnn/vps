@@ -1,4 +1,4 @@
-name: SSH via ngrok (Fixed User)
+name: SSH via ngrok (Phone-ready)
 
 on: [workflow_dispatch]
 
@@ -37,18 +37,22 @@ jobs:
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH }}
           nohup ngrok tcp 22 --log=stdout --log-format=json > ngrok_ssh.log &
 
-      - name: Wait for ngrok TCP URL and display
+      - name: Wait for ngrok TCP URL and display all info
         run: |
-          echo "Waiting for ngrok SSH URL..."
+          echo "Waiting for ngrok SSH info..."
           for i in {1..30}; do
             URL=$(jq -r 'select(.lvl=="info") | .url | select(. != null) | select(test("^tcp://"))' ngrok_ssh.log | head -n1)
             if [ ! -z "$URL" ]; then
               HOST=$(echo $URL | cut -d/ -f3 | cut -d: -f1)
               PORT=$(echo $URL | cut -d: -f3)
-              echo "SSH is ready!"
-              echo "Connect using this command:"
+              echo "🔹 SSH is ready!"
+              echo "Host / IP : $HOST"
+              echo "Port      : $PORT"
+              echo "User      : sshuser"
+              echo "Password  : 123456"
+              echo ""
+              echo "Command to connect (from any device including phone):"
               echo "ssh sshuser@$HOST -p $PORT"
-              echo "Password: 123456"
               exit 0
             fi
             sleep 2
