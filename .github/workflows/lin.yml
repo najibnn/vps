@@ -1,4 +1,4 @@
-name: SSH via ngrok (Phone-ready)
+name: SSH via ngrok (Persistent)
 
 on: [workflow_dispatch]
 
@@ -37,7 +37,7 @@ jobs:
           ngrok config add-authtoken ${{ secrets.NGROK_AUTH }}
           nohup ngrok tcp 22 --log=stdout --log-format=json > ngrok_ssh.log &
 
-      - name: Wait for ngrok TCP URL and display all info
+      - name: Wait for ngrok TCP URL and display info
         run: |
           echo "Waiting for ngrok SSH info..."
           for i in {1..30}; do
@@ -51,10 +51,14 @@ jobs:
               echo "User      : sshuser"
               echo "Password  : 123456"
               echo ""
-              echo "Command to connect (from any device including phone):"
+              echo "Command to connect:"
               echo "ssh sshuser@$HOST -p $PORT"
-              exit 0
+              break
             fi
             sleep 2
           done
-          echo "Failed to get ngrok SSH URL. Check ngrok logs."
+
+      - name: Keep Job Alive
+        run: |
+          echo "⚡ SSH + ngrok is running! Job will stay alive until manually stopped."
+          tail -f /dev/null
